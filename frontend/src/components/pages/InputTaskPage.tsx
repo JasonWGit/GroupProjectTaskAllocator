@@ -16,18 +16,15 @@ interface SelectedTask {
 interface DependencyInputProps {
   selectedTaskDependencies: SelectedTask[];
   setSelectedTaskDependencies: React.Dispatch<React.SetStateAction<SelectedTask[]>>;
+  choosableTasks: ChoosableTask[];
+  setChoosableTasks: React.Dispatch<React.SetStateAction<ChoosableTask[]>>;
+  fetchTasks: () => Promise<void>;
 }
 
-function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDependencies }: DependencyInputProps) {
-  const [choosableTasks, setChoosableTasks] = useState<ChoosableTask[]>([]);
 
+
+function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDependencies, choosableTasks, setChoosableTasks, fetchTasks }: DependencyInputProps) {
   useEffect(() => {
-    const fetchTasks = async () => {
-      const response = await fetchFromBackend("/get_tasks", "GET")
-      console.log(response);
-      setChoosableTasks(response)
-    }
-
     fetchTasks();
   }, [])
 
@@ -54,7 +51,7 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
   return (
     <>
       <Box sx={{ display: 'flex', gap: 1, maxWidth: "90%", flexWrap: "wrap" }}>
-        <Typography>Available task dependencies</Typography>
+        <Typography sx={{width: '100%'}}>Available task dependencies</Typography>
         {
           choosableTasks.map(task => 
             <button type="button" key = {task.id}onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleClickTaskBtn(e, task.id, task.name)}>{task.name}</button>
@@ -63,7 +60,7 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
       </Box>
 
       <Box sx={{ display: 'flex', gap: 1, maxWidth: "90%", flexWrap: "wrap" }}>
-        <Typography>Selected task dependencies</Typography>
+        <Typography sx={{ width: '100% '}}>Selected task dependencies</Typography><br></br>
 
         {
           selectedTaskDependencies.map(task => 
@@ -78,6 +75,12 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
 }
 
 export default function InputTaskPage() {
+  const fetchTasks = async (): Promise<void> => {
+    const response = await fetchFromBackend("/get_tasks", "GET");
+    console.log(response);
+    setChoosableTasks(response)
+  }
+
   const initialTaskFormData = {
     name: {value: ''},
     description: {value: ''},
@@ -92,6 +95,7 @@ export default function InputTaskPage() {
   const [workerFormData, setWorkerFormData] = useState(initialWorkerFormData);
 
   const [selectedTaskDependencies, setSelectedTaskDependencies] = useState<SelectedTask[]>([]);
+  const [choosableTasks, setChoosableTasks] = useState<ChoosableTask[]>([]);
 
   const formChangeHandler = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTaskFormData((prev) => ({
@@ -107,10 +111,10 @@ export default function InputTaskPage() {
     }));
   }
 
-  const taskFormSubmitHandler = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const taskFormSubmitHandler = async (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
 
-    fetchFromBackend("/create_task", "POST", {
+    await fetchFromBackend("/create_task", "POST", {
       name: taskFormData.name.value,
       description: taskFormData.description.value,
       duration: taskFormData.duration.value,
@@ -119,6 +123,7 @@ export default function InputTaskPage() {
     // reset the task form upon submit
     setTaskFormData(initialTaskFormData);
     setSelectedTaskDependencies([])
+    fetchTasks();
   }
 
   const workerFormSubmitHandler = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -141,7 +146,11 @@ export default function InputTaskPage() {
           <TextField label="Task duration (minutes)" name="duration" onChange={formChangeHandler} value={taskFormData.duration.value}/>
           <DependencyInputFormField 
             selectedTaskDependencies={selectedTaskDependencies} 
-            setSelectedTaskDependencies={setSelectedTaskDependencies}/>
+            setSelectedTaskDependencies={setSelectedTaskDependencies}
+            choosableTasks={choosableTasks}
+            setChoosableTasks={setChoosableTasks}
+            fetchTasks={fetchTasks}
+          />
           <Button type="submit" variant="contained" onClick={taskFormSubmitHandler}>Submit</Button>
         </Box>
         
