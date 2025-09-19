@@ -6,6 +6,7 @@ import './App.css'
 import InputTaskPage from './components/pages/InputTaskPage';
 import AllocationPage from './components/pages/AllocationPage';
 import CurrentAllocationPage from './components/pages/CurrentAllocationPage';
+import ViewGraphPage from './components/pages/ViewGraphPage';
 
 function NavBar() {
   const navigate = useNavigate();
@@ -38,6 +39,7 @@ function App() {
           <Route path="/create_tasks" element={<InputTaskPage />} />
           <Route path="/allocation_page" element={<AllocationPage />} />
           <Route path="/curr_allocation" element={<CurrentAllocationPage />} />
+          <Route path="/view_graph" element={<ViewGraphPage />} />
         </Routes>
       </BrowserRouter>
     </>

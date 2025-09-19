@@ -16,42 +16,18 @@ class WorkerData(BaseModel):
     id: str
     name: str
 
-def fetch_tasks() -> TaskData:
+def fetch_tasks() -> list[TaskData]:
     response = (
         supabase.table("tasks").select("*").execute()
     )
     return response.data
 
-def fetch_workers() -> WorkerData:
+def fetch_workers() -> list[WorkerData]:
     response = (
         supabase.table("workers").select("*").execute()
     )
     return response.data
 
-# naive allocation algorithm, just allocates tasks evenly among workers. returns a
-def do_allocation(tasks: list[TaskData], workers: list[WorkerData]) -> Dict[str, list[str]]:
-    if len(tasks) == 0 or len(workers) == 0:
-        return {}
-    
-    task_ids = [task["id"] for task in tasks]
-    worker_ids = [worker["id"] for worker in workers]
-
-    tasks_per_worker = len(task_ids) / len(worker_ids)
-
-    num_tasks = 0
-    allocationDict = {}
-
-    for worker in worker_ids:
-        curr_worker_tasks = []
-        num_tasks = 0
-        while num_tasks < tasks_per_worker:
-            if len(task_ids) != 0:
-                curr_worker_tasks.append(task_ids[0])
-                task_ids.pop(0)
-            num_tasks += 1
-        allocationDict[worker] = curr_worker_tasks
-    
-    return allocationDict
 
 def fetch_task_and_worker_allocation_info():
     try:
@@ -68,7 +44,7 @@ def fetch_task_and_worker_allocation_info():
         "workers": workers
     }
 
-def fetch_task_from_id(task_id: str):
+def fetch_task_from_id(task_id: str) -> TaskData:
     response = (
         supabase.table("tasks").select("*").eq("id", task_id).execute()
     )
@@ -76,7 +52,7 @@ def fetch_task_from_id(task_id: str):
     # since select returns a list of rows, return the first one (if a matched row exists)
     return response.data[0] if response.data else None
 
-def fetch_worker_from_id(worker_id: str):
+def fetch_worker_from_id(worker_id: str) -> WorkerData:
     response = (
         supabase.table("workers").select("*").eq("id", worker_id).execute()
     )
@@ -99,6 +75,15 @@ def fetch_allocation_formatted(allocationDict):
         formattedAllocationDict[worker_name] = task_names
     
     return formattedAllocationDict
+
+def task_id_list_to_task_list(task_ids: list[str]) -> list[TaskData]:
+    task_list: list[TaskData] = []
+    for task_id in task_ids:
+        task: TaskData = fetch_task_from_id(task_id)
+        task_list.append(task)
+    return task_list
     
+
+
         
         

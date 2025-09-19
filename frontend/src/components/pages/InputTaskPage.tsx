@@ -11,6 +11,7 @@ interface ChoosableTask {
 interface SelectedTask {
   id: string;
   name: string;
+  [key: string]: any;
 }
 
 interface DependencyInputProps {
@@ -27,25 +28,27 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
   useEffect(() => {
     fetchTasks();
   }, [])
-
-  const handleClickTaskBtn = (e: React.MouseEvent<HTMLButtonElement>, taskId: string, taskName: string) => {
+  
+  /* add a choosable task to the list of selected task dependencies */
+  const handleClickTaskBtn = (e: React.MouseEvent<HTMLButtonElement>, task: ChoosableTask) => {
     e.preventDefault();
     console.log(selectedTaskDependencies);
-    const newSelectedTask: SelectedTask = {
-      id: taskId,
-      name: taskName
-    };
+    const newSelectedTask: SelectedTask = task;
 
     // after choosing a task by clicking it, remove it from the list of available tasks
-    setChoosableTasks((prev) => choosableTasks.filter(task => task.id != taskId));
+    setChoosableTasks((prev) => choosableTasks.filter(task => task.id != newSelectedTask.id));
 
     // add the selected task to the list of selected tasks
     setSelectedTaskDependencies((prev) => [...prev, newSelectedTask]);
   }
 
-  const handleClickSelectedTaskBtn = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleClickSelectedTaskBtn = (e: React.MouseEvent<HTMLButtonElement>, task: SelectedTask) => {
     e.preventDefault();
     console.log('hi');
+    const newChoosableTask: ChoosableTask = task;
+    setSelectedTaskDependencies((prev) => selectedTaskDependencies.filter(selected_task => selected_task.id != task.id));
+    
+    setChoosableTasks((prev) => [...prev, newChoosableTask]);
   }
 
   return (
@@ -54,7 +57,7 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
         <Typography sx={{width: '100%'}}>Available task dependencies</Typography>
         {
           choosableTasks.map(task => 
-            <button type="button" key = {task.id}onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleClickTaskBtn(e, task.id, task.name)}>{task.name}</button>
+            <button type="button" key = {task.id}onClick={(e: React.MouseEvent<HTMLButtonElement>) => handleClickTaskBtn(e, task)}>{task.name}</button>
           )
         }
       </Box>
@@ -65,7 +68,7 @@ function DependencyInputFormField({ selectedTaskDependencies, setSelectedTaskDep
         {
           selectedTaskDependencies.map(task => 
             <button type="button" key = {task.id} onClick={(e: React.MouseEvent<HTMLButtonElement>) =>
-              handleClickSelectedTaskBtn(e)
+              handleClickSelectedTaskBtn(e, task)
             }>{task.name}</button>
           )
         }

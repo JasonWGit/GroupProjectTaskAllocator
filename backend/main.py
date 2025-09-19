@@ -4,10 +4,17 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from supabase_client import supabase
-from functions import fetch_tasks, fetch_workers, do_allocation, fetch_task_and_worker_allocation_info, fetch_allocation_formatted
-from graph import construct_graph, do_topological_sort
+
+from services.allocator import Allocator
+from services.graph_service import GraphService
+from repositories.worker_repo import fetch_workers
+from repositories.task_repo import fetch_tasks
+
+# this file should only interact with the service layer inside services/
 
 app = FastAPI()
+allocator = Allocator()
+graph_service = GraphService()
 
 app.add_middleware(
     CORSMiddleware,
@@ -48,62 +55,62 @@ def create_worker(worker: WorkerInput):
 
 @app.get("/get_tasks")
 def get_tasks():
-    response = (
-        supabase.table("tasks").select("*").execute()
-    )
-    return response.data
+    return fetch_tasks()
+    # response = (
+    #     supabase.table("tasks").select("*").execute()
+    # )
+    # return response.data
 
 @app.get("/get_workers")
 def get_workers():
-    response = (
-        supabase.table("workers").select("*").execute()
-    )
+    return fetch_workers()
+    # response = (
+    #     supabase.table("workers").select("*").execute()
+    # )
 
-    return response.data
+    # return response.data
 
 @app.get("/get_allocation")
 def get_allocation():
-    #TODO
-    task_and_worker_ids = None
-    try:
-        task_and_worker_info = fetch_task_and_worker_allocation_info()
-    except HTTPException as e:
-        raise e
-    except HTTPException as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # task_and_worker_ids = None
+    # try:
+    #     task_and_worker_info = fetch_task_and_worker_allocation_info()
+    # except HTTPException as e:
+    #     raise e
+    # except HTTPException as e:
+    #     raise HTTPException(status_code=500, detail=str(e))
 
-    tasks = task_and_worker_info["tasks"]
-    workers = task_and_worker_info["workers"]
+    # tasks = task_and_worker_info["tasks"]
+    # workers = task_and_worker_info["workers"]
+    allocation_list = allocator.do_naive_allocation()
 
-    allocationDict = do_allocation(tasks, workers)
-    return allocationDict
+    serialized_allocations_list = [item.to_dict() for item in allocation_list]
+    return serialized_allocations_list
 
-@app.get("/get_allocation_formatted")
-def get_allocation_formatted():
-    task_and_worker_ids = None
-    try:
-        task_and_worker_info = fetch_task_and_worker_allocation_info()
-    except HTTPException as e:
-        raise e
-    except HTTPException as e:
-        raise HTTPException(status_code=500, detail=str(e))
+# @app.get("/get_allocation_formatted")
+# def get_allocation_formatted():
+#     allocationList = do_allocation()
 
-    tasks = task_and_worker_info["tasks"]
-    workers = task_and_worker_info["workers"]
-
-    allocationDict = do_allocation(tasks, workers)
-
-    formattedAllocationDict = fetch_allocation_formatted(allocationDict)
-    print(formattedAllocationDict)
-    return formattedAllocationDict
+#     # formattedAllocationDict = fetch_allocation_formatted(allocationDict)
+#     # print(formattedAllocationDict)
+#     # return formattedAllocationDict
+#     return []
 
 @app.get("/get_task_graph")
 def get_task_graph():
-    return construct_graph()
+    # return construct_graph()
+    return graph_service.get_task_graph_adj_list()
 
 @app.get("/get_topological_order")
 def get_topological_order():
-    return do_topological_sort()
+    # return do_topological_sort()
+    return graph_service.get_task_graph_topological_sort()
+
+@app.get("/get_graph_formatted_json")
+def get_formatted_graph_json():
+    # return get_graph_formatted_json()
+    print(graph_service.get_task_graph_formatted_json_vis())
+    return graph_service.get_task_graph_formatted_json_vis()
 
 # @app.get("/")
 # def read_root():
