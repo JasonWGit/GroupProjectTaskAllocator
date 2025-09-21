@@ -1,6 +1,9 @@
 from interfaces.serializable import Serializable
 
 class TaskGraphEdge:
+    from_id: str
+    to_id: str
+    
     def __init__(self, from_id: str, to_id: str):
         self.from_id = from_id
         self.to_id = to_id

@@ -7,14 +7,19 @@ from supabase_client import supabase
 
 from services.allocator import Allocator
 from services.graph_service import GraphService
+from services.gantt_chart_service import GanttChartService
+
+
 from repositories.worker_repo import fetch_workers
 from repositories.task_repo import fetch_tasks
+
 
 # this file should only interact with the service layer inside services/
 
 app = FastAPI()
 allocator = Allocator()
 graph_service = GraphService()
+gantt_chart_service = GanttChartService()
 
 app.add_middleware(
     CORSMiddleware,
@@ -111,6 +116,11 @@ def get_formatted_graph_json():
     # return get_graph_formatted_json()
     print(graph_service.get_task_graph_formatted_json_vis())
     return graph_service.get_task_graph_formatted_json_vis()
+
+@app.get("/get_gantt_chart_json_naive")
+def get_gantt_chart_json():
+    print(gantt_chart_service.get_naive_allocation_gantt_chart_json())
+    return gantt_chart_service.get_naive_allocation_gantt_chart_json()
 
 # @app.get("/")
 # def read_root():
