@@ -4,6 +4,7 @@ import { Timeline, type TimelineOptions } from "vis-timeline/peer";
 import "vis-timeline/styles/vis-timeline-graph2d.min.css";
 import fetchFromBackend from "../../helperFunctions";
 import { Box, Typography } from "@mui/material";
+import moment from "moment";
 
 type BackendTask = {
   id: string;
@@ -24,7 +25,7 @@ export default function GanttChartPage() {
   // fetch tasks
   useEffect(() => {
     (async () => {
-      const data = await fetchFromBackend("/get_gantt_chart_json_naive", "GET");
+      const data = await fetchFromBackend("/get_gantt_chart_json/dp", "GET");
       if (Array.isArray(data)) setTasks(data);
     })();
   }, []);
@@ -87,14 +88,26 @@ export default function GanttChartPage() {
       zoomable: true,
       orientation: "top",
       zoomKey: "ctrlKey" as const,
-      zoomMin: 1000 * 60,               // 1 minute
-      zoomMax: 1000 * 60 * 60 * 24,     // 1 day
+      zoomMin: 1000 * 30,               // 1 minute
+      zoomMax: 1000 * 60 * 60 * 48,     // 1 day
       showCurrentTime: false,           // hide red line
       min: dayStart,                    // disable scrolling before start of first task
       // scrolling is enabled past last task
       start: initialStart,              // initial view (slightly after midnight)
       end: initialEnd,
-      timeAxis: { scale: "hour", step: 1 }, // show hours, no "Day" header
+      timeAxis: { 
+        scale: "hour", 
+        step: 1,
+      }, // show hours, no "Day" header
+      format: {
+        minorLabels: function(date: Date) {
+          return moment(date).format("H"); // just hours, no ":00"
+        },
+        ////// USE majorLabels to change the thing at the top left of the gantt chart which reads "Mon 22 September"
+        // majorLabels: function(date: Date) {
+        //   return moment(date).format("D"); 
+        // }
+      },
       template: (item: any) => {
         const short =
           typeof item.content === "string" && item.content.length > 30

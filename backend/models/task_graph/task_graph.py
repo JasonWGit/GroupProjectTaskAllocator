@@ -33,7 +33,6 @@ class TaskGraph:
         # also check if a task depends on a task that doesn't exist
 
         for task in tasks:
-            print(task)
             for dependency in task.dependencies:
                 adjacencyList[dependency].add(task.id)
         

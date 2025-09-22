@@ -42,7 +42,6 @@ class WorkerInput(BaseModel):
 
 @app.post("/create_task")
 def create_task(task: TaskInput):
-    print(task)
     response = (
         supabase.table("tasks").insert({"name": task.name, "description": task.description, "duration": int(task.duration), "dependencies": task.dependencies }).execute()
     )
@@ -51,7 +50,6 @@ def create_task(task: TaskInput):
 
 @app.post("/create_worker")
 def create_worker(worker: WorkerInput):
-    print(worker)
     response = (
         supabase.table("workers").insert({ "name": worker.name }).execute()
     )
@@ -114,13 +112,12 @@ def get_topological_order():
 @app.get("/get_graph_formatted_json")
 def get_formatted_graph_json():
     # return get_graph_formatted_json()
-    print(graph_service.get_task_graph_formatted_json_vis())
+    # print(graph_service.get_task_graph_formatted_json_vis())
     return graph_service.get_task_graph_formatted_json_vis()
 
-@app.get("/get_gantt_chart_json_naive")
-def get_gantt_chart_json():
-    print(gantt_chart_service.get_naive_allocation_gantt_chart_json())
-    return gantt_chart_service.get_naive_allocation_gantt_chart_json()
+@app.get("/get_gantt_chart_json/{algorithm}")
+def get_gantt_chart_json(algorithm: str):
+    return gantt_chart_service.get_allocation_gantt_chart_json(algorithm)
 
 # @app.get("/")
 # def read_root():
