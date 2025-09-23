@@ -146,7 +146,7 @@ export default function InputTaskPage() {
         <Box component="form" sx={{ display: 'flex', flexDirection: 'column', gap: 2, mb: 5}}>
           <TextField label="Task name" name="name" onChange={formChangeHandler} value={taskFormData.name.value}/>
           <TextField label="Task description" name="description" onChange={formChangeHandler} value={taskFormData.description.value}/>
-          <TextField label="Task duration (minutes)" name="duration" onChange={formChangeHandler} value={taskFormData.duration.value}/>
+          <TextField label="Task duration (hours)" name="duration" onChange={formChangeHandler} value={taskFormData.duration.value}/>
           <DependencyInputFormField 
             selectedTaskDependencies={selectedTaskDependencies} 
             setSelectedTaskDependencies={setSelectedTaskDependencies}

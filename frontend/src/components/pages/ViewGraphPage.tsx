@@ -39,9 +39,39 @@ export default function ViewGraphPage() {
       const edges = new DataSet<any>(graphJSON.edges);
 
       const options = {
-        layout: { hierarchical: { direction: "UD", sortMethod: "directed" } },
-        edges: { arrows: { to: true } },
-        nodes: { shape: "box" },
+        layout: {
+          hierarchical: {
+            direction: "LR",
+            sortMethod: "directed",
+            nodeSpacing: 200,
+            levelSeparation: 150
+          }
+        },
+        physics: false,
+        edges: {
+          arrows: { to: { enabled: true, scaleFactor: 0.8 } },
+          smooth: true,
+          color: { color: "#888" }
+        },
+        nodes: {
+          shape: "box",
+          color: {
+            background: "#f0f4ff",
+            border: "#3f51b5",
+            highlight: { background: "#c5cae9", border: "#303f9f" }
+          },
+          font: {
+            size: 16,
+            color: "#333"
+          },
+          margin: { top: 10, right: 10, bottom: 10, left: 10 },
+          widthConstraint: { minimum: 100, maximum: 200 }
+        },
+        interaction: {
+          dragNodes: false,
+          dragView: false,
+          zoomView: false
+        }
       };
 
       const data = {

@@ -7,6 +7,7 @@ import InputTaskPage from './components/pages/InputTaskPage';
 import AllocationPage from './components/pages/AllocationPage';
 import CurrentAllocationPage from './components/pages/CurrentAllocationPage';
 import ViewGraphPage from './components/pages/ViewGraphPage';
+import GanttChartPage from './components/pages/GanttChartPage';
 
 function NavBar() {
   const navigate = useNavigate();
@@ -40,6 +41,7 @@ function App() {
           <Route path="/allocation_page" element={<AllocationPage />} />
           <Route path="/curr_allocation" element={<CurrentAllocationPage />} />
           <Route path="/view_graph" element={<ViewGraphPage />} />
+          <Route path="view_gantt_chart" element={<GanttChartPage />} />
         </Routes>
       </BrowserRouter>
     </>

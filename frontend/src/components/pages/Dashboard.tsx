@@ -24,6 +24,10 @@ export default function Dashboard() {
     navigate("/view_graph");
   }
 
+  const navViewGanttChart = () => {
+    navigate("/view_gantt_chart");
+  }
+
   return (
     <>
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: "center", height: "100%", flexDirection: "column" }}>
@@ -31,7 +35,8 @@ export default function Dashboard() {
         <Button variant="contained" sx={{ mb: 5 }} onClick={navCreateTasks}>Go to create tasks page</Button>
         <Button variant="contained" onClick={navAllocation} sx={{ mb: 5 }}>Go to allocation page</Button>
         <Button variant="contained" onClick={navCurrAllocation} sx={{ mb: 5 }}>Go to current allocation page</Button>
-        <Button variant="contained" onClick={navViewGraph}>view task graph</Button>
+        <Button variant="contained" onClick={navViewGraph} sx={{ mb: 5 }}>view task graph</Button>
+        <Button variant="contained" onClick={navViewGanttChart}>view gantt chart</Button>
       </Box>
     </>
   )

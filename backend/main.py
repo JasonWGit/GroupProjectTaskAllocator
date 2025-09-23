@@ -7,14 +7,19 @@ from supabase_client import supabase
 
 from services.allocator import Allocator
 from services.graph_service import GraphService
+from services.gantt_chart_service import GanttChartService
+
+
 from repositories.worker_repo import fetch_workers
 from repositories.task_repo import fetch_tasks
+
 
 # this file should only interact with the service layer inside services/
 
 app = FastAPI()
 allocator = Allocator()
 graph_service = GraphService()
+gantt_chart_service = GanttChartService()
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,7 +42,6 @@ class WorkerInput(BaseModel):
 
 @app.post("/create_task")
 def create_task(task: TaskInput):
-    print(task)
     response = (
         supabase.table("tasks").insert({"name": task.name, "description": task.description, "duration": int(task.duration), "dependencies": task.dependencies }).execute()
     )
@@ -46,7 +50,6 @@ def create_task(task: TaskInput):
 
 @app.post("/create_worker")
 def create_worker(worker: WorkerInput):
-    print(worker)
     response = (
         supabase.table("workers").insert({ "name": worker.name }).execute()
     )
@@ -109,8 +112,12 @@ def get_topological_order():
 @app.get("/get_graph_formatted_json")
 def get_formatted_graph_json():
     # return get_graph_formatted_json()
-    print(graph_service.get_task_graph_formatted_json_vis())
+    # print(graph_service.get_task_graph_formatted_json_vis())
     return graph_service.get_task_graph_formatted_json_vis()
+
+@app.get("/get_gantt_chart_json/{algorithm}")
+def get_gantt_chart_json(algorithm: str):
+    return gantt_chart_service.get_allocation_gantt_chart_json(algorithm)
 
 # @app.get("/")
 # def read_root():
