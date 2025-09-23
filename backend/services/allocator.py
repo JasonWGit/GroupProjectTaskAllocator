@@ -10,6 +10,7 @@ from services.task_service import get_task_id_to_task_dict
 from services.worker_service import get_worker_id_to_worker_dict
 import math
 from collections import defaultdict
+import heapq
 
 @dataclass
 class AllocationItem(Serializable):
@@ -162,50 +163,52 @@ class Allocator:
         
         return allocation_items
 
-    
     def do_dp_allocation(self) -> list[AllocationItem]:
         tasks = fetch_tasks()
         workers = fetch_workers()
+        n = len(tasks)
         m = len(workers)
-        if len(tasks) == 0 or m == 0:
+
+        # if no workers/tasks, nothing to schedule
+        if n == 0 or m == 0:
             return []
 
-        # ----------------- Preprocessing -----------------
+        # preprocess task graph (topological sort so that we process/allocate all dependencies for a task before considering the task)
+        # create id_to_index and index_to_task maps to allow for quick mapping between task.id <-> index in bitmask. Bitmask is used in DP where each bit represents a task and is either 0 (task not finished/allocated) or 1 (task finished/allocated)
         task_graph = TaskGraph(tasks)
-        ordered_tasks: list[Task] = task_graph.topological_sort()
-
-        # map task.id -> index (0..n-1) for bitmask DP
+        ordered_tasks = task_graph.topological_sort()
         id_to_index = {task.id: i for i, task in enumerate(ordered_tasks)}
-        index_to_id = {i: task.id for i, task in enumerate(ordered_tasks)}
+        index_to_task = {i: task for i, task in enumerate(ordered_tasks)}
 
-        n = len(ordered_tasks)
-        full_mask = (1 << n) - 1
-
-        durations = [t.duration for t in ordered_tasks]
+        # create a "dependencies" mask for each task i. The mask represents all the tasks that must be finished before that task i can be started. 
+        # There are n dependency masks, 1 for each of the n tasks -> these masks are stored inside "prereq mask" at the index corresponding to that tasks position inside the topological ordering
+        # the dependency mask for each task i has a n bits (a bit for every single task). A bit being 1 means the task it represents is a dependency task for task i
         prereq_mask = [0] * n
-        for t in ordered_tasks:
+        durations = [t.duration for t in ordered_tasks]
+        for i, task in enumerate(ordered_tasks):
             mask = 0
-            for dep in t.dependencies:
+            for dep in task.dependencies:
                 mask |= (1 << id_to_index[dep])
-            prereq_mask[id_to_index[t.id]] = mask
+            prereq_mask[i] = mask
 
-        # ----------------- DP Arrays -----------------
-        INF = 10**18
+        # dp[S] stores the minimum time to finish all tasks in subset S i.e. the cached result to a subproblem
+        # subsets are represented as bitmasks (S goes from 0 to 2^n - 1)
+        INF = float('inf')
         dp = [INF] * (1 << n)
         dp[0] = 0
         parent = [-1] * (1 << n)
         parent_subset = [0] * (1 << n)
 
-        # helper
+        # helper func to count set bits in given bitmask
         def popcount(x: int) -> int:
-            return x.bit_count() if hasattr(x, "bit_count") else bin(x).count("1")
+            return bin(x).count("1")
 
-        # ----------------- DP Loop -----------------
+        # enumerate all states
         for S in range(1 << n):
             if dp[S] == INF:
                 continue
 
-            # compute ready set
+            # find ready tasks (tasks that have all dependencies already allocated/finshed)
             ready_mask = 0
             for i in range(n):
                 if not (S >> i) & 1:  # task not done
@@ -215,33 +218,34 @@ class Allocator:
             if ready_mask == 0:
                 continue
 
-            # enumerate submasks
+            # enumerate all subsets of ready tasks that can fit on workers
             sub = ready_mask
             while sub:
                 if popcount(sub) <= m:
-                    # compute batch duration
-                    max_d = 0
+                    # compute batch duration, a batch being one possible subset of the ready tasks ->(max duration of tasks in subset)
+                    batch_duration = 0
                     x = sub
                     while x:
                         lsb = x & -x
                         idx = lsb.bit_length() - 1
-                        max_d = max(max_d, durations[idx])
+                        batch_duration = max(batch_duration, durations[idx])
                         x ^= lsb
+
                     newS = S | sub
-                    new_time = dp[S] + max_d
+                    new_time = dp[S] + batch_duration
                     if new_time < dp[newS]:
                         dp[newS] = new_time
                         parent[newS] = S
                         parent_subset[newS] = sub
                 sub = (sub - 1) & ready_mask
 
-        # ----------------- Reconstruct batches -----------------
+        # reconstruct batches
+        full_mask = (1 << n) - 1
         batches = []
         cur = full_mask
         while cur != 0:
             prev = parent[cur]
             sub = parent_subset[cur]
-            start_time = dp[prev]
             task_indices = []
             x = sub
             while x:
@@ -249,26 +253,172 @@ class Allocator:
                 idx = lsb.bit_length() - 1
                 task_indices.append(idx)
                 x ^= lsb
-            batches.append((start_time, task_indices))
+            batches.append((task_indices, dp[prev]))
             cur = prev
         batches.reverse()
 
-        # ----------------- Assign tasks to workers -----------------
+        
+        # build planned start/end per task from DP task batches (subsets)
+        task_planned_start: dict[int, int] = {}
+        task_planned_end: dict[int, int] = {}
+        for task_indices, batch_start in batches:
+            for idx in task_indices:
+                task_planned_start[idx] = batch_start
+                task_planned_end[idx] = batch_start + durations[idx]
+
+        # sort all tasks by planned start -> if same planned start, tie break based on duration (longer task prioritised)
+        all_tasks_sorted = sorted(
+            [(task_planned_start[idx], -durations[idx], idx) for idx in task_planned_start],
+            key=lambda t: (t[0], t[1])
+        )
+
+        # assign tasks to workers using min-heap of (available_time, worker_index)
+        worker_list = list(workers)  # index -> Worker object
+        worker_heap = [(0, i) for i in range(len(worker_list))]  # (available_time, worker_index)
+        heapq.heapify(worker_heap)
+
         worker_alloc: dict[str, list[Task]] = defaultdict(list)
-        worker_id_to_worker_map: dict[str, Worker] = get_worker_id_to_worker_dict()
+        task_actual_start: dict[int, int] = {}
+        task_actual_end: dict[int, int] = {}
 
-        # simple assignment: distribute tasks in each batch round-robin among workers
-        for _, task_indices in batches:
-            for j, idx in enumerate(task_indices):
-                task_id = index_to_id[idx]
-                task_obj = next(t for t in tasks if t.id == task_id)
-                worker = workers[j % m]  # round robin
-                worker_alloc[worker.id].append(task_obj)
+        for planned_start, neg_dur, idx in all_tasks_sorted:
+            dur = durations[idx]
+            avail_time, widx = heapq.heappop(worker_heap)
 
-        # ----------------- Wrap in AllocationItem -----------------
+            # start task at planned_start if worker free, otherwise at worker availability
+            actual_start = planned_start if avail_time <= planned_start else avail_time
+            actual_end = actual_start + dur
+
+            task_obj = index_to_task[idx]
+            worker_obj = worker_list[widx]
+
+            worker_alloc[worker_obj.id].append(task_obj)
+
+            # push worker back with new availability
+            heapq.heappush(worker_heap, (actual_end, widx))
+
+            # store actual start and end times
+            task_actual_start[idx] = actual_start
+            task_actual_end[idx] = actual_end
+        
+        
+
+        # wrap allocation items while preserving worker order
+        worker_id_to_worker = {w.id: w for w in workers}
         allocation_items: list[AllocationItem] = []
-        for worker_id, assigned_tasks in worker_alloc.items():
-            worker = worker_id_to_worker_map[worker_id]
-            allocation_items.append(AllocationItem(worker=worker, tasks=assigned_tasks))
+        for w in worker_list:
+            allocation_items.append(AllocationItem(worker=worker_id_to_worker[w.id], tasks=worker_alloc.get(w.id, [])))
 
+        # could potentially in future return task_actual_start/task_actual_end for gantt rendering instead of manually recalculating the start and end times in gantt service
         return allocation_items
+    
+    # -------------------- old batch DP (unoptimal) algorithm
+    # def do_dp_allocation(self) -> list[AllocationItem]:
+    #     tasks = fetch_tasks()
+    #     workers = fetch_workers()
+    #     m = len(workers)
+    #     if len(tasks) == 0 or m == 0:
+    #         return []
+
+    #     # ----------------- Preprocessing -----------------
+    #     task_graph = TaskGraph(tasks)
+    #     ordered_tasks: list[Task] = task_graph.topological_sort()
+
+    #     # map task.id -> index (0..n-1) for bitmask DP
+    #     id_to_index = {task.id: i for i, task in enumerate(ordered_tasks)}
+    #     index_to_id = {i: task.id for i, task in enumerate(ordered_tasks)}
+
+    #     n = len(ordered_tasks)
+    #     full_mask = (1 << n) - 1
+
+    #     durations = [t.duration for t in ordered_tasks]
+    #     prereq_mask = [0] * n
+    #     for t in ordered_tasks:
+    #         mask = 0
+    #         for dep in t.dependencies:
+    #             mask |= (1 << id_to_index[dep])
+    #         prereq_mask[id_to_index[t.id]] = mask
+
+    #     # ----------------- DP Arrays -----------------
+    #     INF = 10**18
+    #     dp = [INF] * (1 << n)
+    #     dp[0] = 0
+    #     parent = [-1] * (1 << n)
+    #     parent_subset = [0] * (1 << n)
+
+    #     # helper
+    #     def popcount(x: int) -> int:
+    #         return x.bit_count() if hasattr(x, "bit_count") else bin(x).count("1")
+
+    #     # ----------------- DP Loop -----------------
+    #     for S in range(1 << n):
+    #         if dp[S] == INF:
+    #             continue
+
+    #         # compute ready set
+    #         ready_mask = 0
+    #         for i in range(n):
+    #             if not (S >> i) & 1:  # task not done
+    #                 if (prereq_mask[i] & S) == prereq_mask[i]:
+    #                     ready_mask |= (1 << i)
+
+    #         if ready_mask == 0:
+    #             continue
+
+    #         # enumerate submasks
+    #         sub = ready_mask
+    #         while sub:
+    #             if popcount(sub) <= m:
+    #                 # compute batch duration
+    #                 max_d = 0
+    #                 x = sub
+    #                 while x:
+    #                     lsb = x & -x
+    #                     idx = lsb.bit_length() - 1
+    #                     max_d = max(max_d, durations[idx])
+    #                     x ^= lsb
+    #                 newS = S | sub
+    #                 new_time = dp[S] + max_d
+    #                 if new_time < dp[newS]:
+    #                     dp[newS] = new_time
+    #                     parent[newS] = S
+    #                     parent_subset[newS] = sub
+    #             sub = (sub - 1) & ready_mask
+
+    #     # ----------------- Reconstruct batches -----------------
+    #     batches = []
+    #     cur = full_mask
+    #     while cur != 0:
+    #         prev = parent[cur]
+    #         sub = parent_subset[cur]
+    #         start_time = dp[prev]
+    #         task_indices = []
+    #         x = sub
+    #         while x:
+    #             lsb = x & -x
+    #             idx = lsb.bit_length() - 1
+    #             task_indices.append(idx)
+    #             x ^= lsb
+    #         batches.append((start_time, task_indices))
+    #         cur = prev
+    #     batches.reverse()
+
+    #     # ----------------- Assign tasks to workers -----------------
+    #     worker_alloc: dict[str, list[Task]] = defaultdict(list)
+    #     worker_id_to_worker_map: dict[str, Worker] = get_worker_id_to_worker_dict()
+
+    #     # simple assignment: distribute tasks in each batch round-robin among workers
+    #     for _, task_indices in batches:
+    #         for j, idx in enumerate(task_indices):
+    #             task_id = index_to_id[idx]
+    #             task_obj = next(t for t in tasks if t.id == task_id)
+    #             worker = workers[j % m]  # round robin
+    #             worker_alloc[worker.id].append(task_obj)
+
+    #     # ----------------- Wrap in AllocationItem -----------------
+    #     allocation_items: list[AllocationItem] = []
+    #     for worker_id, assigned_tasks in worker_alloc.items():
+    #         worker = worker_id_to_worker_map[worker_id]
+    #         allocation_items.append(AllocationItem(worker=worker, tasks=assigned_tasks))
+
+    #     return allocation_items

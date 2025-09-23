@@ -20,6 +20,8 @@ class GanttTask(Serializable):
     progress: int # number between 0 and 100
     dependencies: Optional[str] # comma separate d list of task ids
     custom_class: Optional[str]
+    worker_id: str
+    worker_name: str
 
     def to_dict(self):
         return {
@@ -29,7 +31,9 @@ class GanttTask(Serializable):
             "end": self.end,
             "progress": self.progress,
             "dependencies": self.dependencies,
-            "custom_class": self.custom_class
+            "custom_class": self.custom_class,
+            "worker_id": self.worker_id,
+            "worker_name": self.worker_name
         }
 
 class GanttChartService:
@@ -47,6 +51,7 @@ class GanttChartService:
             print(f'naive allocation took {end - start:.6f} seconds')
             return self._get_gantt_chart_json_data(naive_allocation_list)
         elif algorithm == "greedy":
+            print('using greedy')
             start = time.perf_counter()
 
             greedy_allocation_list = allocator.do_greedy_allocation()
@@ -56,6 +61,7 @@ class GanttChartService:
 
             return self._get_gantt_chart_json_data(greedy_allocation_list)
         elif algorithm == "dp":
+            print('using dp')
             start = time.perf_counter()
 
             dp_allocation_list = allocator.do_dp_allocation()
@@ -107,12 +113,14 @@ class GanttChartService:
 
             gantt_tasks.append(GanttTask(
                 id=task.id,
-                name=f"{task.name} ({task_id_to_worker_map[task.id].name}) ({task.duration} hours)",
+                name=f"{task.name} ({allocated_worker.name}) ({task.duration} hours)",
                 start=start_time.isoformat(),
                 end=end_time.isoformat(),
                 progress=0,
                 dependencies=",".join(task.dependencies),
-                custom_class=None
+                custom_class=None,
+                worker_id=allocated_worker.id,
+                worker_name=allocated_worker.name
             ))
         
         return self._gantt_task_list_to_dict_list(gantt_tasks)
